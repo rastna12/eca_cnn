@@ -64,3 +64,6 @@ Desktop.ini
 # Data
 data/
 *.npz
+
+# Plots
+figs/
