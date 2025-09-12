@@ -55,7 +55,15 @@ uv run eca-cnn-experiments --rules 150,90,30 --Hs 8,16,32 \
 ### Analysis (from saved runs)
 ```bash
 uv run eca-cnn-analysis --runs-dir runs --outdir figs/analysis --rules 150,90,30 --Hs 8,16,32
-# Produces acc_vs_H_* and acc_vs_depth_* plots from saved metrics, no retraining
+# Produces per-run training curves (loss/acc), acc_vs_H_* per model, final_acc_vs_H_* overlays per rule,
+# and acc_vs_depth_* plots — all from saved metrics (no retraining)
+```
+
+### One-shot: PowerShell orchestrator
+```powershell
+# From repo root (Windows PowerShell)
+./run_experiments.ps1 -Device cuda -Steps 500 -Rules "150,90,30" -Hs "8,16,32" -Models "shallow,deep" -Depths "2,4,8" -Seeds "1,2,3"
+# Script auto-detects uv; falls back to python -m if uv is not found
 ```
 
 ## Python API quickstart
