@@ -193,7 +193,7 @@ def main():
         for model in ("shallow", "deep"):
             plot_acc_vs_H(runs, model=model, rule=rule, outdir=outdir)
 
-    # Final accuracy vs H, all models overlayed per rule
+    # Final accuracy vs H, all models overlayed per rule (kept for reference)
     for rule in rules:
         plot_final_acc_vs_H_all_models(runs, rule=rule, outdir=outdir)
 
@@ -201,6 +201,61 @@ def main():
     for rule in rules:
         for H in Hs:
             plot_acc_vs_depth(runs, rule=rule, H=H, outdir=outdir)
+
+    # New: For each model variant (e.g., shallow, deep-Dk), plot all rules as curves on one figure
+    # Build set of model variants present
+    model_keys: List[Tuple[str, int]] = []
+    seen = set()
+    for r in runs:
+        cfg = r["config"]
+        model = str(cfg.get("model"))
+        depth = int(cfg.get("depth")) if (model == "deep" and cfg.get("depth") is not None) else 0
+        key = (model, depth)
+        if key not in seen:
+            seen.add(key)
+            model_keys.append(key)
+
+    for (model, depth) in model_keys:
+        # Aggregate by rule, then H
+        rule_to_H_to_accs: Dict[int, Dict[int, List[float]]] = {}
+        for r in runs:
+            cfg = r["config"]
+            if str(cfg.get("model")) != model:
+                continue
+            d = int(cfg.get("depth")) if (model == "deep" and cfg.get("depth") is not None) else 0
+            if d != depth:
+                continue
+            rule = int(cfg.get("rule"))
+            if rules and rule not in rules:
+                continue
+            H = int(cfg.get("H"))
+            acc = float(r["metrics"]["acc"][-1]) if len(r["metrics"]["acc"]) else np.nan
+            rule_to_H_to_accs.setdefault(rule, {}).setdefault(H, []).append(acc)
+
+        if not rule_to_H_to_accs:
+            continue
+
+        fig, ax = plt.subplots(figsize=(6, 4))
+        for rule in sorted(rule_to_H_to_accs.keys()):
+            H_to_accs = rule_to_H_to_accs[rule]
+            Hs_sorted = sorted(H_to_accs.keys())
+            means = [np.nanmean(H_to_accs[H]) for H in Hs_sorted]
+            stds = [np.nanstd(H_to_accs[H]) for H in Hs_sorted]
+            ax.errorbar(Hs_sorted, means, yerr=stds, fmt="-o", capsize=3, label=f"rule {rule}")
+        title = f"Final accuracy vs H — model={model}"
+        if model == "deep":
+            title += f", depth={depth}"
+        ax.set_title(title)
+        ax.set_xlabel("H")
+        ax.set_ylabel("Final accuracy")
+        ax.grid(True, alpha=0.3)
+        ax.legend()
+        fig.tight_layout()
+        fname = f"final_acc_vs_H_by_rule_model-{model}"
+        if model == "deep":
+            fname += f"_D{depth}"
+        fig.savefig(outdir / f"{fname}.png", dpi=220)
+        plt.close(fig)
 
     print(f"Saved analysis figures to {outdir.resolve()}")
 
