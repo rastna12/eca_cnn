@@ -23,6 +23,8 @@ packages = ["src/eca_cnn"]
 [project.scripts]
 eca-cnn-train = "eca_cnn.train:main"
 eca-cnn-plots = "eca_cnn.eca_plots:main"
+eca-cnn-experiments = "eca_cnn.experiments:main"
+eca-cnn-analysis = "eca_cnn.analysis:main"
 
 [[tool.uv.index]]
 name = "pytorch-cu128"

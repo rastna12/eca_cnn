@@ -34,14 +34,28 @@ python -m eca_cnn.eca_plots --help
 ### Train
 ```bash
 uv run eca-cnn-train --help
-uv run eca-cnn-train --rule 150 --H 128 --steps 500 --device cuda
-uv run eca-cnn-train --rule 90  --H 128 --linear
-uv run eca-cnn-train --rule 30  --H 64  --device cpu
+uv run eca-cnn-train --rule 150 --model shallow --H 128 --steps 500 --device cuda
+uv run eca-cnn-train --rule 90  --model shallow --H 128 --linear
+uv run eca-cnn-train --rule 30  --model deep    --H 64 --depth 16 --device cpu
+# Artifacts (config, metrics.csv, checkpoints) saved under runs/<timestamp>_rule.../ 
 ```
 
 ### Plots
 ```bash
 uv run eca-cnn-plots --outdir figs --width 256 --steps 256 --Hmask 16
+```
+
+### Experiments (sweeps)
+```bash
+uv run eca-cnn-experiments --rules 150,90,30 --Hs 8,16,32 \
+  --models shallow,deep --depths 2,4,8 --seeds 1,2,3 --steps 500 --device cuda
+# Index of runs saved to runs/runs_index.json
+```
+
+### Analysis (from saved runs)
+```bash
+uv run eca-cnn-analysis --runs-dir runs --outdir figs/analysis --rules 150,90,30 --Hs 8,16,32
+# Produces acc_vs_H_* and acc_vs_depth_* plots from saved metrics, no retraining
 ```
 
 ## Python API quickstart

@@ -67,3 +67,13 @@ data/
 
 # Plots
 figs/
+test_figs/
+
+# Runs
+runs/
+
+# LaTeX
+*.tex
+
+# Pdf
+*.pdf
