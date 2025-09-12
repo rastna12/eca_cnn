@@ -1,7 +1,7 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -93,6 +93,81 @@ def plot_acc_vs_depth(runs: List[Dict], *, rule: int, H: int, outdir: Path):
     plt.close(fig)
 
 
+def plot_training_curves_for_run(run: Dict, outdir: Path):
+    outdir.mkdir(parents=True, exist_ok=True)
+    cfg = run["config"]
+    metrics = run["metrics"]
+    if len(metrics["step"]) == 0:
+        return
+    steps = metrics["step"]
+    loss = metrics["loss"]
+    acc = metrics["acc"]
+
+    title_bits = [
+        f"rule={cfg.get('rule')}",
+        f"model={cfg.get('model')}",
+        f"H={cfg.get('H')}",
+    ]
+    if cfg.get("model") == "deep" and cfg.get("depth") is not None:
+        title_bits.append(f"D={cfg.get('depth')}")
+    if cfg.get("seed") is not None:
+        title_bits.append(f"seed={cfg.get('seed')}")
+    title = ", ".join(title_bits)
+
+    fig, axes = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
+    axes[0].plot(steps, loss, label="loss")
+    axes[0].set_ylabel("BCE loss")
+    axes[0].grid(True, alpha=0.3)
+    axes[0].legend(loc="best")
+
+    axes[1].plot(steps, acc, label="accuracy", color="tab:green")
+    axes[1].set_xlabel("training step")
+    axes[1].set_ylabel("accuracy")
+    axes[1].grid(True, alpha=0.3)
+    axes[1].legend(loc="best")
+
+    fig.suptitle(title)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
+    fname = run["path"].name + "_curves.png"
+    fig.savefig(outdir / fname, dpi=220)
+    plt.close(fig)
+
+
+def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path):
+    outdir.mkdir(parents=True, exist_ok=True)
+    # aggregate by (model, depth) then H
+    key_to_H_to_accs: Dict[Tuple[str, int], Dict[int, List[float]]] = {}
+    for r in runs:
+        cfg = r["config"]
+        if cfg.get("rule") != rule:
+            continue
+        model = str(cfg.get("model"))
+        depth = int(cfg.get("depth")) if (model == "deep" and cfg.get("depth") is not None) else 0
+        H = int(cfg.get("H"))
+        acc = float(r["metrics"]["acc"][-1]) if len(r["metrics"]["acc"]) else np.nan
+        key = (model, depth)
+        key_to_H_to_accs.setdefault(key, {}).setdefault(H, []).append(acc)
+
+    if not key_to_H_to_accs:
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    for (model, depth), H_to_accs in sorted(key_to_H_to_accs.items()):
+        Hs = sorted(H_to_accs.keys())
+        means = [np.nanmean(H_to_accs[H]) for H in Hs]
+        stds = [np.nanstd(H_to_accs[H]) for H in Hs]
+        label = f"{model}" if model != "deep" else f"deep-D{depth}"
+        ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3, label=label)
+    ax.set_title(f"Final accuracy vs H — rule={rule}")
+    ax.set_xlabel("H")
+    ax.set_ylabel("Final accuracy")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(outdir / f"final_acc_vs_H_rule-{rule}.png", dpi=220)
+    plt.close(fig)
+
+
 def main():
     p = argparse.ArgumentParser(description="Aggregate run artifacts and make summary plots.")
     p.add_argument("--runs-dir", type=str, default="runs")
@@ -108,9 +183,21 @@ def main():
     rules = [int(x) for x in args.rules.split(",") if x]
     Hs = [int(x) for x in args.Hs.split(",") if x]
 
+    # Per-run training curves
+    curves_out = outdir / "curves"
+    for r in runs:
+        plot_training_curves_for_run(r, outdir=curves_out)
+
+    # Final accuracy vs H, one plot per model and rule (existing)
     for rule in rules:
         for model in ("shallow", "deep"):
             plot_acc_vs_H(runs, model=model, rule=rule, outdir=outdir)
+
+    # Final accuracy vs H, all models overlayed per rule
+    for rule in rules:
+        plot_final_acc_vs_H_all_models(runs, rule=rule, outdir=outdir)
+
+    # Accuracy vs depth for each rule and H (existing)
     for rule in rules:
         for H in Hs:
             plot_acc_vs_depth(runs, rule=rule, H=H, outdir=outdir)

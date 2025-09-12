@@ -33,6 +33,9 @@ def run_sweeps(
         if model == "deep" and depth is None:
             # skip invalid combos
             continue
+        if model == "shallow" and depth is not None:
+            # for shallow model, ignore provided depth values to avoid duplicates
+            continue
         tag = None
         run_dir = train_rule(
             rule=rule,
