@@ -1,5 +1,5 @@
 [project]
-name = "eca_cnn"
+name = "eca-cnn"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -12,6 +12,17 @@ dependencies = [
     "torch",
     "torchvision",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["src/eca_cnn"]
+
+[project.scripts]
+eca-cnn-train = "eca_cnn.train:main"
+eca-cnn-plots = "eca_cnn.eca_plots:main"
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
