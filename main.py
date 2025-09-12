@@ -1,5 +1,5 @@
 def main():
-    print("Hello from cogsci-comp-reduc!")
+    print("Hello from eca_cnn!")
 
 
 if __name__ == "__main__":
