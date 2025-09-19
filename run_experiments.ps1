@@ -4,14 +4,16 @@ param(
     [string]$AnalysisDir = "figs/analysis",
     [string]$Device = "cuda",
     [int]$Steps = 500,
-    [string]$Rules = "150,90,30",
+    [string]$Rules = "150,90,30,110",
     [string]$Hs = "8,16,32",
-    [string]$Models = "shallow,deep",
-    [string]$Depths = "2,4,8",
-    [string]$Seeds = "1,2,3",
+    [string]$Models = "shallow",
+    [string]$Depths = "",
+    [string]$Seeds = "1",
     [int]$Width = 256,
     [int]$SpacetimeSteps = 256,
-    [int]$Hmask = 16
+    [int]$Hmask = 16,
+    [int]$QualH = 32,
+    [int]$QualSeed = 0
 )
 
 Set-StrictMode -Version Latest
@@ -55,10 +57,10 @@ else {
 
 # 3) Aggregate and plot analysis from saved runs
 if ($UseUv) {
-    Invoke-Tool "uv run eca-cnn-analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`""
+    Invoke-Tool "uv run eca-cnn-analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`" --qual-H $QualH --qual-seed $QualSeed"
 }
 else {
-    Invoke-Tool "python -m eca_cnn.analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`""
+    Invoke-Tool "python -m eca_cnn.analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`" --qual-H $QualH --qual-seed $QualSeed"
 }
 
 Write-Host "All done." -ForegroundColor Green
