@@ -249,18 +249,25 @@ def plot_truth_vs_prediction(
     tbl = rule_table(rule)
     y_true_bits = jump_ahead(x_bits.clone(), tbl, H)[0]
 
-    # Stack rows: truth on top, prediction on bottom
-    img = torch.stack([y_true_bits, pred_bits], dim=0).cpu().numpy().astype(np.uint8)
+    # Prepare images for subplots
+    truth_img = y_true_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
+    pred_img = pred_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(6, 1.6))
-    ax.imshow(img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
+    # Plot as two subplots with clear labels
+    fig, axes = plt.subplots(2, 1, figsize=(6, 2.4), sharex=True)
+    axes[0].imshow(truth_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
+    axes[0].set_title("Ground truth (t+H)", fontsize=10)
+    axes[0].set_xticks([]); axes[0].set_yticks([])
+
+    axes[1].imshow(pred_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
+    axes[1].set_title("Prediction (t+H)", fontsize=10)
+    axes[1].set_xticks([]); axes[1].set_yticks([])
+
     label = f"model={model}"
     if model == "deep" and depth is not None:
         label += f", depth={depth}"
-    ax.set_title(f"Rule {rule} — H={H} — {label}")
-    ax.set_xticks([]); ax.set_yticks([])
-    fig.tight_layout()
+    fig.suptitle(f"Rule {rule} — H={H} — {label}", fontsize=11)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
 
     fname = f"qual_rule-{rule}_H-{H}_model-{model}"
     if model == "deep" and depth is not None:
@@ -363,6 +370,7 @@ def main():
 
     # Qualitative: ground truth vs prediction rows for H=64 (by default), one per rule
     qual_out = outdir / "qualitative"
+    qual_out.mkdir(parents=True, exist_ok=True)
     for rule in rules:
         best = _select_best_run(runs, rule=rule, H=args.qual_H)
         if best is None:

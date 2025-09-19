@@ -35,6 +35,23 @@ if (Get-Command uv -ErrorAction SilentlyContinue) { $UseUv = $true }
 $Runner = if ($UseUv) { "uv run" } else { "python -m" }
 Write-Host "Using $Runner to invoke tools."
 
+# Clean previous outputs: delete contents of RunsDir and FigsDir
+foreach ($dir in @($RunsDir, $FigsDir)) {
+    try {
+        if (Test-Path -LiteralPath $dir) {
+            Write-Host "Cleaning directory: $dir"
+            Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        else {
+            Write-Host "Creating directory: $dir"
+            New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        }
+    }
+    catch {
+        Write-Warning "Failed to clean directory: $dir. $_"
+    }
+}
+
 # 1) Generate base ECA spacetime and parity mask plots (optional but useful)
 if ($UseUv) {
     Invoke-Tool "uv run eca-cnn-plots --outdir `"$FigsDir`" --width $Width --steps $SpacetimeSteps --Hmask $Hmask"
