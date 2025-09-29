@@ -64,8 +64,8 @@ def plot_acc_vs_H(runs: List[Dict], *, model: str, rule: int, outdir: Path):
     apply_ieee_style()
     fig, ax = plt.subplots(figsize=(3.35, 2.1))
     ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3)
-    ax.set_title(f"Accuracy vs H — Rule={rule}")
-    ax.set_xlabel("H")
+    ax.set_title(f"Final Accuracy vs Prediction Horizon H — Rule={rule}")
+    ax.set_xlabel("Prediction Horizon H")
     ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -109,23 +109,26 @@ def plot_training_curves_for_run(run: Dict, outdir: Path, *, ylims: Optional[Dic
     loss = metrics["loss"]
     acc = metrics["acc"]
 
-    title_bits = [
-        f"Rule={cfg.get('rule')}",
-        f"H={cfg.get('H')}",
-    ]
-    if cfg.get("model") == "deep" and cfg.get("depth") is not None:
-        title_bits.append(f"D={cfg.get('depth')}")
-    if cfg.get("seed") is not None:
-        title_bits.append(f"seed={cfg.get('seed')}")
-    title = ", ".join(title_bits)
+    rule_val = cfg.get("rule")
+    model_val = cfg.get("model")
+    depth_val = cfg.get("depth")
+    H_val = cfg.get("H")
+    seed_val = cfg.get("seed")
+
+    parts = [f"Rule {rule_val}", f"H: {H_val}"]
+    if model_val == "deep" and depth_val is not None:
+        parts.insert(2, f"Depth: {depth_val}")
+    if seed_val is not None:
+        parts.append(f"Seed: {seed_val}")
+    title = "Training Curves — " + "  |  ".join(parts)
 
     fig, axes = plt.subplots(2, 1, figsize=(3.35, 2.2), sharex=True)
-    axes[0].plot(steps, loss, label="loss")
+    axes[0].plot(steps, loss, label="Loss")
     axes[0].set_ylabel("BCE Loss")
     axes[0].grid(True, alpha=0.3)
     axes[0].legend(loc="best")
 
-    axes[1].plot(steps, acc, label="accuracy", color="tab:green")
+    axes[1].plot(steps, acc, label="Accuracy", color="tab:green")
     axes[1].set_xlabel("Training Step")
     axes[1].set_ylabel("Accuracy")
     axes[1].grid(True, alpha=0.3)
@@ -170,8 +173,8 @@ def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path)
         stds = [np.nanstd(H_to_accs[H]) for H in Hs]
         label = f"{model}" if model != "deep" else f"deep-D{depth}"
         ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3, label=label)
-    ax.set_title(f"Final accuracy vs H — rule={rule}")
-    ax.set_xlabel("H")
+    ax.set_title(f"Final Accuracy vs Prediction Horizon H — Rule={rule}")
+    ax.set_xlabel("Prediction Horizon H")
     ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
     ax.legend()
@@ -387,13 +390,13 @@ def main():
             Hs_sorted = sorted(H_to_accs.keys())
             means = [np.nanmean(H_to_accs[H]) for H in Hs_sorted]
             stds = [np.nanstd(H_to_accs[H]) for H in Hs_sorted]
-            ax.errorbar(Hs_sorted, means, yerr=stds, fmt="-o", capsize=3, label=f"rule {rule}")
-        title = f"Final accuracy vs H"
+            ax.errorbar(Hs_sorted, means, yerr=stds, fmt="-o", capsize=3, label=f"Rule {rule}")
+        title = f"Final Accuracy vs Prediction Horizon H"
         if model == "deep":
-            title += f", depth={depth}"
+            title += f", Depth={depth}"
         ax.set_title(title)
-        ax.set_xlabel("H")
-        ax.set_ylabel("Final accuracy")
+        ax.set_xlabel("Prediction Horizon H")
+        ax.set_ylabel("Final Accuracy")
         ax.grid(True, alpha=0.3)
         ax.legend()
         fig.tight_layout()
