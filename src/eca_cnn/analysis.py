@@ -12,6 +12,22 @@ from eca_cnn.plot_style import apply_ieee_style, savefig_ieee, use_ieee_style
 from eca_cnn.eca_core import rule_table, jump_ahead
 
 
+def _rule_category(rule: int) -> str:
+    return "Reducible" if rule in (90, 150) else "Irreducible"
+
+
+def _rule_style(rule: int):
+    # Colors chosen to be colorblind-friendly and distinct
+    color_map = {30: "tab:orange", 110: "tab:red", 90: "tab:blue", 150: "tab:cyan"}
+    marker_map = {30: "o", 110: "o", 90: "s", 150: "s"}
+    linestyle_map = {30: "-", 110: "-", 90: "--", 150: "--"}
+    return {
+        "color": color_map.get(rule, "black"),
+        "marker": marker_map.get(rule, "o"),
+        "linestyle": linestyle_map.get(rule, "-")
+    }
+
+
 def read_metrics_csv(path: Path) -> Dict[str, np.ndarray]:
     steps = []
     losses = []
@@ -63,11 +79,14 @@ def plot_acc_vs_H(runs: List[Dict], *, model: str, rule: int, outdir: Path):
 
     apply_ieee_style()
     fig, ax = plt.subplots(figsize=(3.35, 2.1))
-    ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3)
+    style = _rule_style(rule)
+    label = f"Rule {rule} ({_rule_category(rule)})"
+    ax.errorbar(Hs, means, yerr=stds, capsize=3, label=label, **style)
     ax.set_title(f"Final Accuracy vs Prediction Horizon $H$ — Rule={rule}")
     ax.set_xlabel("Prediction Horizon $H$")
     ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
+    ax.legend(loc="best")
     fig.tight_layout()
     savefig_ieee(fig, outdir / f"acc_vs_H_rule-{rule}.png")
     plt.close(fig)
@@ -89,11 +108,14 @@ def plot_acc_vs_depth(runs: List[Dict], *, rule: int, H: int, outdir: Path):
     stds = [np.nanstd(depth_to_accs[d]) for d in depths]
 
     fig, ax = plt.subplots(figsize=(3.35, 2.1))
-    ax.errorbar(depths, means, yerr=stds, fmt="-o", capsize=3)
+    style = _rule_style(rule)
+    label = f"Rule {rule} ({_rule_category(rule)})"
+    ax.errorbar(depths, means, yerr=stds, capsize=3, label=label, **style)
     ax.set_title(f"Accuracy vs Depth — Rule={rule}")
     ax.set_xlabel("Depth")
     ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
+    ax.legend(loc="best")
     fig.tight_layout()
     savefig_ieee(fig, outdir / f"acc_vs_depth_rule-{rule}.png")
     plt.close(fig)
@@ -277,7 +299,7 @@ def plot_truth_vs_prediction(
     label = f"model={model}"
     if model == "deep" and depth is not None:
         label += f", depth={depth}"
-    fig.suptitle(f"Rule {rule} — $H={H}$")
+    fig.suptitle(f"Rule {rule} ({_rule_category(rule)}) — $H={H}$")
     fig.tight_layout(rect=[0, 0.03, 1, 0.97])
 
     fname = f"qual_rule-{rule}_H-{H}_model-{model}"
@@ -390,7 +412,9 @@ def main():
             Hs_sorted = sorted(H_to_accs.keys())
             means = [np.nanmean(H_to_accs[H]) for H in Hs_sorted]
             stds = [np.nanstd(H_to_accs[H]) for H in Hs_sorted]
-            ax.errorbar(Hs_sorted, means, yerr=stds, fmt="-o", capsize=3, label=f"Rule {rule}")
+            style = _rule_style(rule)
+            label = f"Rule {rule} ({_rule_category(rule)})"
+            ax.errorbar(Hs_sorted, means, yerr=stds, capsize=3, label=label, **style)
         title = f"Final Accuracy vs Prediction Horizon $H$"
         if model == "deep":
             title += f", Depth={depth}"
@@ -398,7 +422,8 @@ def main():
         ax.set_xlabel("Prediction Horizon $H$")
         ax.set_ylabel("Final Accuracy")
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc="best")
         fig.tight_layout()
         fname = f"final_acc_vs_H_by_rule_model-{model}"
         if model == "deep":
