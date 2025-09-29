@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from eca_cnn.models import build_model
+from eca_cnn.plot_style import apply_ieee_style, savefig_ieee, use_ieee_style
 from eca_cnn.eca_core import rule_table, jump_ahead
 
 
@@ -60,14 +61,15 @@ def plot_acc_vs_H(runs: List[Dict], *, model: str, rule: int, outdir: Path):
     means = [np.nanmean(H_to_accs[H]) for H in Hs]
     stds = [np.nanstd(H_to_accs[H]) for H in Hs]
 
-    fig, ax = plt.subplots(figsize=(5, 3))
+    apply_ieee_style()
+    fig, ax = plt.subplots(figsize=(3.35, 2.1))
     ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3)
-    ax.set_title(f"Accuracy vs H — model={model}, rule={rule}")
+    ax.set_title(f"Accuracy vs H — Rule={rule}")
     ax.set_xlabel("H")
     ax.set_ylabel("Final accuracy")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(outdir / f"acc_vs_H_model-{model}_rule-{rule}.png", dpi=220)
+    savefig_ieee(fig, outdir / f"acc_vs_H_rule-{rule}.png")
     plt.close(fig)
 
 
@@ -86,14 +88,14 @@ def plot_acc_vs_depth(runs: List[Dict], *, rule: int, H: int, outdir: Path):
     means = [np.nanmean(depth_to_accs[d]) for d in depths]
     stds = [np.nanstd(depth_to_accs[d]) for d in depths]
 
-    fig, ax = plt.subplots(figsize=(5, 3))
+    fig, ax = plt.subplots(figsize=(3.35, 2.1))
     ax.errorbar(depths, means, yerr=stds, fmt="-o", capsize=3)
-    ax.set_title(f"Accuracy vs depth — rule={rule}, H={H}")
+    ax.set_title(f"Accuracy vs depth — Rule={rule}")
     ax.set_xlabel("depth")
     ax.set_ylabel("Final accuracy")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(outdir / f"acc_vs_depth_rule-{rule}_H-{H}.png", dpi=220)
+    savefig_ieee(fig, outdir / f"acc_vs_depth_rule-{rule}.png")
     plt.close(fig)
 
 
@@ -108,8 +110,7 @@ def plot_training_curves_for_run(run: Dict, outdir: Path):
     acc = metrics["acc"]
 
     title_bits = [
-        f"rule={cfg.get('rule')}",
-        f"model={cfg.get('model')}",
+        f"Rule={cfg.get('rule')}",
         f"H={cfg.get('H')}",
     ]
     if cfg.get("model") == "deep" and cfg.get("depth") is not None:
@@ -118,7 +119,7 @@ def plot_training_curves_for_run(run: Dict, outdir: Path):
         title_bits.append(f"seed={cfg.get('seed')}")
     title = ", ".join(title_bits)
 
-    fig, axes = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 2.2), sharex=True)
     axes[0].plot(steps, loss, label="loss")
     axes[0].set_ylabel("BCE loss")
     axes[0].grid(True, alpha=0.3)
@@ -133,7 +134,7 @@ def plot_training_curves_for_run(run: Dict, outdir: Path):
     fig.suptitle(title)
     fig.tight_layout(rect=[0, 0.03, 1, 0.97])
     fname = run["path"].name + "_curves.png"
-    fig.savefig(outdir / fname, dpi=220)
+    savefig_ieee(fig, outdir / fname)
     plt.close(fig)
 
 
@@ -155,7 +156,7 @@ def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path)
     if not key_to_H_to_accs:
         return
 
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(3.35, 2.3))
     for (model, depth), H_to_accs in sorted(key_to_H_to_accs.items()):
         Hs = sorted(H_to_accs.keys())
         means = [np.nanmean(H_to_accs[H]) for H in Hs]
@@ -168,7 +169,7 @@ def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path)
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
-    fig.savefig(outdir / f"final_acc_vs_H_rule-{rule}.png", dpi=220)
+    savefig_ieee(fig, outdir / f"final_acc_vs_H_rule-{rule}.png")
     plt.close(fig)
 
 
@@ -254,7 +255,7 @@ def plot_truth_vs_prediction(
     pred_img = pred_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
 
     # Plot as two subplots with clear labels
-    fig, axes = plt.subplots(2, 1, figsize=(6, 2.4), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 1.8), sharex=True)
     axes[0].imshow(truth_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
     axes[0].set_title("Ground truth (t+H)", fontsize=10)
     axes[0].set_xticks([]); axes[0].set_yticks([])
@@ -273,7 +274,7 @@ def plot_truth_vs_prediction(
     if model == "deep" and depth is not None:
         fname += f"_D{depth}"
     fname += f"_seed{seed}.png"
-    fig.savefig(outdir / fname, dpi=220, bbox_inches='tight', pad_inches=0.05)
+    savefig_ieee(fig, outdir / fname)
     plt.close(fig)
 
 
@@ -346,7 +347,7 @@ def main():
         if not rule_to_H_to_accs:
             continue
 
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(3.35, 2.3))
         for rule in sorted(rule_to_H_to_accs.keys()):
             H_to_accs = rule_to_H_to_accs[rule]
             Hs_sorted = sorted(H_to_accs.keys())
@@ -365,7 +366,7 @@ def main():
         fname = f"final_acc_vs_H_by_rule_model-{model}"
         if model == "deep":
             fname += f"_D{depth}"
-        fig.savefig(outdir / f"{fname}.png", dpi=220)
+        savefig_ieee(fig, outdir / f"{fname}.png")
         plt.close(fig)
 
     # Qualitative: ground truth vs prediction rows for H=64 (by default), one per rule
