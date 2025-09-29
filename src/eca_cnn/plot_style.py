@@ -29,15 +29,36 @@ IEEE_RCPARAMS = {
 }
 
 
-def apply_ieee_style() -> None:
-    """Apply IEEE-like matplotlib rcParams globally."""
-    mpl.rcParams.update(IEEE_RCPARAMS)
+def apply_ieee_style(*, use_tex: bool = False) -> None:
+    """
+    Apply IEEE-like matplotlib rcParams globally.
+    If use_tex=True, enable LaTeX text rendering (requires a TeX distribution).
+    """
+    params = dict(IEEE_RCPARAMS)
+    if use_tex:
+        params.update({
+            "text.usetex": True,
+            # Keep serif/Times alignment with IEEE
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "Times"],
+            # Modest preamble; users can extend if needed
+            "text.latex.preamble": r"\usepackage{amsmath}",
+        })
+    mpl.rcParams.update(params)
 
 
 @contextmanager
-def use_ieee_style():
+def use_ieee_style(*, use_tex: bool = False):
     """Context manager to temporarily apply IEEE style within a with-block."""
-    with mpl.rc_context(IEEE_RCPARAMS):
+    params = dict(IEEE_RCPARAMS)
+    if use_tex:
+        params.update({
+            "text.usetex": True,
+            "font.family": "serif",
+            "font.serif": ["Times New Roman", "Times"],
+            "text.latex.preamble": r"\usepackage{amsmath}",
+        })
+    with mpl.rc_context(params):
         yield
 
 

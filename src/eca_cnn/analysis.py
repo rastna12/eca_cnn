@@ -64,8 +64,8 @@ def plot_acc_vs_H(runs: List[Dict], *, model: str, rule: int, outdir: Path):
     apply_ieee_style()
     fig, ax = plt.subplots(figsize=(3.35, 2.1))
     ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3)
-    ax.set_title(f"Final Accuracy vs Prediction Horizon H — Rule={rule}")
-    ax.set_xlabel("Prediction Horizon H")
+    ax.set_title(f"Final Accuracy vs Prediction Horizon $H$ — Rule={rule}")
+    ax.set_xlabel("Prediction Horizon $H$")
     ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
@@ -90,7 +90,7 @@ def plot_acc_vs_depth(runs: List[Dict], *, rule: int, H: int, outdir: Path):
 
     fig, ax = plt.subplots(figsize=(3.35, 2.1))
     ax.errorbar(depths, means, yerr=stds, fmt="-o", capsize=3)
-    ax.set_title(f"Accuracy vs depth — Rule={rule}")
+    ax.set_title(f"Accuracy vs Depth — Rule={rule}")
     ax.set_xlabel("Depth")
     ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
@@ -173,8 +173,8 @@ def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path)
         stds = [np.nanstd(H_to_accs[H]) for H in Hs]
         label = f"{model}" if model != "deep" else f"deep-D{depth}"
         ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3, label=label)
-    ax.set_title(f"Final Accuracy vs Prediction Horizon H — Rule={rule}")
-    ax.set_xlabel("Prediction Horizon H")
+    ax.set_title(f"Final Accuracy vs Prediction Horizon $H$ — Rule={rule}")
+    ax.set_xlabel("Prediction Horizon $H$")
     ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
     ax.legend()
@@ -267,17 +267,17 @@ def plot_truth_vs_prediction(
     # Plot as two subplots with clear labels
     fig, axes = plt.subplots(2, 1, figsize=(3.35, 1.8), sharex=True)
     axes[0].imshow(truth_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
-    axes[0].set_title("Ground truth (t+H)")
+    axes[0].set_title("Ground Truth ($t+H$)")
     axes[0].set_xticks([]); axes[0].set_yticks([])
 
     axes[1].imshow(pred_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
-    axes[1].set_title("Prediction (t+H)")
+    axes[1].set_title("Prediction ($t+H$)")
     axes[1].set_xticks([]); axes[1].set_yticks([])
 
     label = f"model={model}"
     if model == "deep" and depth is not None:
         label += f", depth={depth}"
-    fig.suptitle(f"Rule {rule} — H={H}")
+    fig.suptitle(f"Rule {rule} — $H={H}$")
     fig.tight_layout(rect=[0, 0.03, 1, 0.97])
 
     fname = f"qual_rule-{rule}_H-{H}_model-{model}"
@@ -391,11 +391,11 @@ def main():
             means = [np.nanmean(H_to_accs[H]) for H in Hs_sorted]
             stds = [np.nanstd(H_to_accs[H]) for H in Hs_sorted]
             ax.errorbar(Hs_sorted, means, yerr=stds, fmt="-o", capsize=3, label=f"Rule {rule}")
-        title = f"Final Accuracy vs Prediction Horizon H"
+        title = f"Final Accuracy vs Prediction Horizon $H$"
         if model == "deep":
             title += f", Depth={depth}"
         ax.set_title(title)
-        ax.set_xlabel("Prediction Horizon H")
+        ax.set_xlabel("Prediction Horizon $H$")
         ax.set_ylabel("Final Accuracy")
         ax.grid(True, alpha=0.3)
         ax.legend()
