@@ -8,7 +8,24 @@ import numpy as np
 import torch
 
 from eca_cnn.models import build_model
+from eca_cnn.plot_style import apply_ieee_style, savefig_ieee, use_ieee_style
 from eca_cnn.eca_core import rule_table, jump_ahead
+
+
+def _rule_category(rule: int) -> str:
+    return "Reducible" if rule in (90, 150) else "Irreducible"
+
+
+def _rule_style(rule: int):
+    # Colors chosen to be colorblind-friendly and distinct
+    color_map = {30: "tab:orange", 110: "tab:red", 90: "tab:blue", 150: "tab:cyan"}
+    marker_map = {30: "o", 110: "o", 90: "s", 150: "s"}
+    linestyle_map = {30: "-", 110: "-", 90: "--", 150: "--"}
+    return {
+        "color": color_map.get(rule, "black"),
+        "marker": marker_map.get(rule, "o"),
+        "linestyle": linestyle_map.get(rule, "-")
+    }
 
 
 def read_metrics_csv(path: Path) -> Dict[str, np.ndarray]:
@@ -60,14 +77,18 @@ def plot_acc_vs_H(runs: List[Dict], *, model: str, rule: int, outdir: Path):
     means = [np.nanmean(H_to_accs[H]) for H in Hs]
     stds = [np.nanstd(H_to_accs[H]) for H in Hs]
 
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3)
-    ax.set_title(f"Accuracy vs H — model={model}, rule={rule}")
-    ax.set_xlabel("H")
-    ax.set_ylabel("Final accuracy")
+    apply_ieee_style()
+    fig, ax = plt.subplots(figsize=(3.35, 2.1))
+    style = _rule_style(rule)
+    label = f"Rule {rule} ({_rule_category(rule)})"
+    ax.errorbar(Hs, means, yerr=stds, capsize=3, label=label, **style)
+    ax.set_title(f"Final Accuracy vs Prediction Horizon $H$ — Rule={rule}")
+    ax.set_xlabel("Prediction Horizon $H$")
+    ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
+    ax.legend(loc="best")
     fig.tight_layout()
-    fig.savefig(outdir / f"acc_vs_H_model-{model}_rule-{rule}.png", dpi=220)
+    savefig_ieee(fig, outdir / f"acc_vs_H_rule-{rule}.png")
     plt.close(fig)
 
 
@@ -86,18 +107,21 @@ def plot_acc_vs_depth(runs: List[Dict], *, rule: int, H: int, outdir: Path):
     means = [np.nanmean(depth_to_accs[d]) for d in depths]
     stds = [np.nanstd(depth_to_accs[d]) for d in depths]
 
-    fig, ax = plt.subplots(figsize=(5, 3))
-    ax.errorbar(depths, means, yerr=stds, fmt="-o", capsize=3)
-    ax.set_title(f"Accuracy vs depth — rule={rule}, H={H}")
-    ax.set_xlabel("depth")
-    ax.set_ylabel("Final accuracy")
+    fig, ax = plt.subplots(figsize=(3.35, 2.1))
+    style = _rule_style(rule)
+    label = f"Rule {rule} ({_rule_category(rule)})"
+    ax.errorbar(depths, means, yerr=stds, capsize=3, label=label, **style)
+    ax.set_title(f"Accuracy vs Depth — Rule={rule}")
+    ax.set_xlabel("Depth")
+    ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
+    ax.legend(loc="best")
     fig.tight_layout()
-    fig.savefig(outdir / f"acc_vs_depth_rule-{rule}_H-{H}.png", dpi=220)
+    savefig_ieee(fig, outdir / f"acc_vs_depth_rule-{rule}.png")
     plt.close(fig)
 
 
-def plot_training_curves_for_run(run: Dict, outdir: Path):
+def plot_training_curves_for_run(run: Dict, outdir: Path, *, ylims: Optional[Dict[str, Tuple[float, float]]] = None):
     outdir.mkdir(parents=True, exist_ok=True)
     cfg = run["config"]
     metrics = run["metrics"]
@@ -107,33 +131,42 @@ def plot_training_curves_for_run(run: Dict, outdir: Path):
     loss = metrics["loss"]
     acc = metrics["acc"]
 
-    title_bits = [
-        f"rule={cfg.get('rule')}",
-        f"model={cfg.get('model')}",
-        f"H={cfg.get('H')}",
-    ]
-    if cfg.get("model") == "deep" and cfg.get("depth") is not None:
-        title_bits.append(f"D={cfg.get('depth')}")
-    if cfg.get("seed") is not None:
-        title_bits.append(f"seed={cfg.get('seed')}")
-    title = ", ".join(title_bits)
+    rule_val = cfg.get("rule")
+    model_val = cfg.get("model")
+    depth_val = cfg.get("depth")
+    H_val = cfg.get("H")
+    seed_val = cfg.get("seed")
 
-    fig, axes = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
-    axes[0].plot(steps, loss, label="loss")
-    axes[0].set_ylabel("BCE loss")
+    parts = [f"Rule {rule_val}", f"H: {H_val}"]
+    if model_val == "deep" and depth_val is not None:
+        parts.insert(2, f"Depth: {depth_val}")
+    if seed_val is not None:
+        parts.append(f"Seed: {seed_val}")
+    title = "Training Curves — " + "  |  ".join(parts)
+
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 2.2), sharex=True)
+    axes[0].plot(steps, loss, label="Loss")
+    axes[0].set_ylabel("BCE Loss")
     axes[0].grid(True, alpha=0.3)
     axes[0].legend(loc="best")
 
-    axes[1].plot(steps, acc, label="accuracy", color="tab:green")
-    axes[1].set_xlabel("training step")
-    axes[1].set_ylabel("accuracy")
+    axes[1].plot(steps, acc, label="Accuracy", color="tab:green")
+    axes[1].set_xlabel("Training Step")
+    axes[1].set_ylabel("Accuracy")
     axes[1].grid(True, alpha=0.3)
     axes[1].legend(loc="best")
 
+    if ylims is not None:
+        loss_lim = ylims.get("loss")
+        acc_lim = ylims.get("acc")
+        if loss_lim is not None:
+            axes[0].set_ylim(*loss_lim)
+        if acc_lim is not None:
+            axes[1].set_ylim(*acc_lim)
     fig.suptitle(title)
     fig.tight_layout(rect=[0, 0.03, 1, 0.97])
     fname = run["path"].name + "_curves.png"
-    fig.savefig(outdir / fname, dpi=220)
+    savefig_ieee(fig, outdir / fname)
     plt.close(fig)
 
 
@@ -155,20 +188,20 @@ def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path)
     if not key_to_H_to_accs:
         return
 
-    fig, ax = plt.subplots(figsize=(6, 4))
+    fig, ax = plt.subplots(figsize=(3.35, 2.3))
     for (model, depth), H_to_accs in sorted(key_to_H_to_accs.items()):
         Hs = sorted(H_to_accs.keys())
         means = [np.nanmean(H_to_accs[H]) for H in Hs]
         stds = [np.nanstd(H_to_accs[H]) for H in Hs]
         label = f"{model}" if model != "deep" else f"deep-D{depth}"
         ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3, label=label)
-    ax.set_title(f"Final accuracy vs H — rule={rule}")
-    ax.set_xlabel("H")
-    ax.set_ylabel("Final accuracy")
+    ax.set_title(f"Final Accuracy vs Prediction Horizon $H$ — Rule={rule}")
+    ax.set_xlabel("Prediction Horizon $H$")
+    ax.set_ylabel("Final Accuracy")
     ax.grid(True, alpha=0.3)
     ax.legend()
     fig.tight_layout()
-    fig.savefig(outdir / f"final_acc_vs_H_rule-{rule}.png", dpi=220)
+    savefig_ieee(fig, outdir / f"final_acc_vs_H_rule-{rule}.png")
     plt.close(fig)
 
 
@@ -254,26 +287,26 @@ def plot_truth_vs_prediction(
     pred_img = pred_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
 
     # Plot as two subplots with clear labels
-    fig, axes = plt.subplots(2, 1, figsize=(6, 2.4), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(3.35, 1.8), sharex=True)
     axes[0].imshow(truth_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
-    axes[0].set_title("Ground truth (t+H)", fontsize=10)
+    axes[0].set_title("Ground Truth ($t+H$)")
     axes[0].set_xticks([]); axes[0].set_yticks([])
 
     axes[1].imshow(pred_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
-    axes[1].set_title("Prediction (t+H)", fontsize=10)
+    axes[1].set_title("Prediction ($t+H$)")
     axes[1].set_xticks([]); axes[1].set_yticks([])
 
     label = f"model={model}"
     if model == "deep" and depth is not None:
         label += f", depth={depth}"
-    fig.suptitle(f"Rule {rule} — H={H} — {label}", fontsize=11)
+    fig.suptitle(f"Rule {rule} ({_rule_category(rule)}) — $H={H}$")
     fig.tight_layout(rect=[0, 0.03, 1, 0.97])
 
     fname = f"qual_rule-{rule}_H-{H}_model-{model}"
     if model == "deep" and depth is not None:
         fname += f"_D{depth}"
     fname += f"_seed{seed}.png"
-    fig.savefig(outdir / fname, dpi=220, bbox_inches='tight', pad_inches=0.05)
+    savefig_ieee(fig, outdir / fname)
     plt.close(fig)
 
 
@@ -287,6 +320,9 @@ def main():
     p.add_argument("--qual-seed", type=int, default=0, help="Seed for input vector for qualitative plots")
     args = p.parse_args()
 
+    # Apply IEEE style up-front to cover any figures created below
+    apply_ieee_style()
+
     runs_dir = Path(args.runs_dir)
     outdir = Path(args.outdir)
     runs = collect_runs(runs_dir)
@@ -294,10 +330,34 @@ def main():
     rules = [int(x) for x in args.rules.split(",") if x]
     Hs = [int(x) for x in args.Hs.split(",") if x]
 
-    # Per-run training curves
+    # Per-run training curves with consistent y-limits across runs
     curves_out = outdir / "curves"
+    # Compute global y-limits
+    all_losses = []
+    all_accs = []
     for r in runs:
-        plot_training_curves_for_run(r, outdir=curves_out)
+        m = r["metrics"]
+        if len(m.get("loss", [])):
+            all_losses.extend(m["loss"])  # type: ignore[arg-type]
+        if len(m.get("acc", [])):
+            all_accs.extend(m["acc"])  # type: ignore[arg-type]
+    loss_ylim: Optional[Tuple[float, float]] = None
+    acc_ylim: Optional[Tuple[float, float]] = None
+    if all_losses:
+        # pad a little for headroom
+        lmin = float(min(all_losses))
+        lmax = float(max(all_losses))
+        pad = 0.05 * (lmax - lmin if lmax > lmin else 1.0)
+        loss_ylim = (max(0.0, lmin - pad), lmax + pad)
+    if all_accs:
+        amin = float(min(all_accs))
+        amax = float(max(all_accs))
+        pad = 0.02 * (amax - amin if amax > amin else 1.0)
+        acc_ylim = (max(0.0, amin - pad), min(1.0, amax + pad))
+    ylims = {"loss": loss_ylim, "acc": acc_ylim}
+
+    for r in runs:
+        plot_training_curves_for_run(r, outdir=curves_out, ylims=ylims)
 
     # Final accuracy vs H, one plot per model and rule (existing)
     for rule in rules:
@@ -346,26 +406,29 @@ def main():
         if not rule_to_H_to_accs:
             continue
 
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(3.35, 2.3))
         for rule in sorted(rule_to_H_to_accs.keys()):
             H_to_accs = rule_to_H_to_accs[rule]
             Hs_sorted = sorted(H_to_accs.keys())
             means = [np.nanmean(H_to_accs[H]) for H in Hs_sorted]
             stds = [np.nanstd(H_to_accs[H]) for H in Hs_sorted]
-            ax.errorbar(Hs_sorted, means, yerr=stds, fmt="-o", capsize=3, label=f"rule {rule}")
-        title = f"Final accuracy vs H — model={model}"
+            style = _rule_style(rule)
+            label = f"Rule {rule} ({_rule_category(rule)})"
+            ax.errorbar(Hs_sorted, means, yerr=stds, capsize=3, label=label, **style)
+        title = f"Final Accuracy vs Prediction Horizon $H$"
         if model == "deep":
-            title += f", depth={depth}"
+            title += f", Depth={depth}"
         ax.set_title(title)
-        ax.set_xlabel("H")
-        ax.set_ylabel("Final accuracy")
+        ax.set_xlabel("Prediction Horizon $H$")
+        ax.set_ylabel("Final Accuracy")
         ax.grid(True, alpha=0.3)
-        ax.legend()
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc="best")
         fig.tight_layout()
         fname = f"final_acc_vs_H_by_rule_model-{model}"
         if model == "deep":
             fname += f"_D{depth}"
-        fig.savefig(outdir / f"{fname}.png", dpi=220)
+        savefig_ieee(fig, outdir / f"{fname}.png")
         plt.close(fig)
 
     # Qualitative: ground truth vs prediction rows for H=64 (by default), one per rule

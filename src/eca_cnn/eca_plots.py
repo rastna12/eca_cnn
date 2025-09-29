@@ -4,32 +4,34 @@ from pathlib import Path
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+from eca_cnn.plot_style import apply_ieee_style, savefig_ieee
 
 from eca_cnn.eca_core import simulate
 
 
 def plot_spacetime(grid: torch.Tensor, title: str, outpath: Path, dpi=220):
     outpath.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(6, 3))
+    apply_ieee_style()
+    fig, ax = plt.subplots(figsize=(3.35, 1.8))
     ax.imshow(grid.numpy(), aspect='auto', interpolation='nearest', cmap='binary')
-    ax.set_title(title, fontsize=10)
+    ax.set_title(title)
     ax.set_xlabel("Space")
     ax.set_ylabel("Time")
     ax.set_xticks([]); ax.set_yticks([])
     fig.tight_layout()
-    fig.savefig(outpath, dpi=dpi)
+    savefig_ieee(fig, outpath)
     plt.close(fig)
 
 
 def plot_k_mask(mask: np.ndarray, title: str, outpath: Path, dpi=220):
     outpath.parent.mkdir(parents=True, exist_ok=True)
     img = mask[np.newaxis, :]
-    fig, ax = plt.subplots(figsize=(6, 1.0))
+    fig, ax = plt.subplots(figsize=(3.35, 0.8))
     ax.imshow(img, aspect='auto', interpolation='nearest', cmap='binary')
-    ax.set_title(title, fontsize=10)
+    ax.set_title(title)
     ax.set_xticks([]); ax.set_yticks([])
     fig.tight_layout()
-    fig.savefig(outpath, dpi=dpi, bbox_inches='tight', pad_inches=0.05)
+    savefig_ieee(fig, outpath)
     plt.close(fig)
 
 
