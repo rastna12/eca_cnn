@@ -1,10 +1,14 @@
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
+
+from eca_cnn.models import build_model
+from eca_cnn.eca_core import rule_table, jump_ahead
 
 
 def read_metrics_csv(path: Path) -> Dict[str, np.ndarray]:
@@ -168,12 +172,119 @@ def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path)
     plt.close(fig)
 
 
+def _select_best_run(runs: List[Dict], *, rule: int, H: int) -> Optional[Dict]:
+    """
+    Among runs matching (rule, H), pick the one with the highest final accuracy.
+    Returns the run dict or None if not found.
+    """
+    candidates: List[Tuple[float, Dict]] = []
+    for r in runs:
+        cfg = r["config"]
+        if int(cfg.get("rule")) != rule or int(cfg.get("H")) != H:
+            continue
+        acc_series = r["metrics"].get("acc", np.array([]))
+        if acc_series.size == 0:
+            continue
+        final_acc = float(acc_series[-1])
+        candidates.append((final_acc, r))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return candidates[0][1]
+
+
+def _load_model_for_run(run: Dict, device: str = "cpu"):
+    cfg = run["config"]
+    model_name = str(cfg.get("model"))
+    H = int(cfg.get("H")) if cfg.get("H") is not None else None
+    depth = int(cfg.get("depth")) if cfg.get("depth") is not None else None
+    hidden = int(cfg.get("hidden", 32))
+
+    mdl = build_model(
+        model_name,
+        H=H if model_name == "shallow" else None,
+        depth=depth if model_name == "deep" else None,
+        hidden=hidden,
+        linear=bool(cfg.get("linear", False)),
+    ).to(device)
+
+    ckpt_path = run["path"] / "checkpoint_final.pt"
+    ckpt = torch.load(ckpt_path, map_location=device)
+    mdl.load_state_dict(ckpt["model_state"])
+    mdl.eval()
+    return mdl
+
+
+def plot_truth_vs_prediction(
+    run: Dict,
+    *,
+    H: int,
+    seed: int = 0,
+    outdir: Path,
+):
+    """
+    Create a two-row binary visualization: [ground truth; model prediction] at t+H.
+    Uses a single random input state x_t with width N from the run config.
+    """
+    outdir.mkdir(parents=True, exist_ok=True)
+
+    cfg = run["config"]
+    rule = int(cfg.get("rule"))
+    N = int(cfg.get("N", 256))
+    model = str(cfg.get("model"))
+    depth = int(cfg.get("depth")) if cfg.get("depth") is not None else None
+
+    device = "cpu"
+    mdl = _load_model_for_run(run, device=device)
+
+    g = torch.Generator().manual_seed(seed)
+    x_bits = torch.randint(0, 2, (1, N), dtype=torch.long, generator=g)
+    x = x_bits.unsqueeze(1).float()  # (1,1,N)
+
+    with torch.no_grad():
+        logits = mdl(x)
+        pred_bits = (logits.sigmoid() > 0.5).to(torch.uint8)[0, 0]
+
+    # Ground truth via ECA simulator jump-ahead
+    tbl = rule_table(rule)
+    y_true_bits = jump_ahead(x_bits.clone(), tbl, H)[0]
+
+    # Prepare images for subplots
+    truth_img = y_true_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
+    pred_img = pred_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
+
+    # Plot as two subplots with clear labels
+    fig, axes = plt.subplots(2, 1, figsize=(6, 2.4), sharex=True)
+    axes[0].imshow(truth_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
+    axes[0].set_title("Ground truth (t+H)", fontsize=10)
+    axes[0].set_xticks([]); axes[0].set_yticks([])
+
+    axes[1].imshow(pred_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
+    axes[1].set_title("Prediction (t+H)", fontsize=10)
+    axes[1].set_xticks([]); axes[1].set_yticks([])
+
+    label = f"model={model}"
+    if model == "deep" and depth is not None:
+        label += f", depth={depth}"
+    fig.suptitle(f"Rule {rule} — H={H} — {label}", fontsize=11)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
+
+    fname = f"qual_rule-{rule}_H-{H}_model-{model}"
+    if model == "deep" and depth is not None:
+        fname += f"_D{depth}"
+    fname += f"_seed{seed}.png"
+    fig.savefig(outdir / fname, dpi=220, bbox_inches='tight', pad_inches=0.05)
+    plt.close(fig)
+
+
 def main():
     p = argparse.ArgumentParser(description="Aggregate run artifacts and make summary plots.")
     p.add_argument("--runs-dir", type=str, default="runs")
     p.add_argument("--outdir", type=str, default="figs/analysis")
     p.add_argument("--rules", type=str, default="150,90,30")
     p.add_argument("--Hs", type=str, default="8,16,32")
+    p.add_argument("--qual-H", type=int, default=64, help="H for qualitative truth vs prediction plots")
+    p.add_argument("--qual-seed", type=int, default=0, help="Seed for input vector for qualitative plots")
     args = p.parse_args()
 
     runs_dir = Path(args.runs_dir)
@@ -256,6 +367,15 @@ def main():
             fname += f"_D{depth}"
         fig.savefig(outdir / f"{fname}.png", dpi=220)
         plt.close(fig)
+
+    # Qualitative: ground truth vs prediction rows for H=64 (by default), one per rule
+    qual_out = outdir / "qualitative"
+    qual_out.mkdir(parents=True, exist_ok=True)
+    for rule in rules:
+        best = _select_best_run(runs, rule=rule, H=args.qual_H)
+        if best is None:
+            continue
+        plot_truth_vs_prediction(best, H=args.qual_H, seed=args.qual_seed, outdir=qual_out)
 
     print(f"Saved analysis figures to {outdir.resolve()}")
 
