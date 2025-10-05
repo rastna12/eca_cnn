@@ -59,6 +59,22 @@ uv run eca-cnn-analysis --runs-dir runs --outdir figs/analysis --rules 150,90,30
 # and acc_vs_depth_* plots — all from saved metrics (no retraining)
 ```
 
+#### LaTeX table export
+Generate a formatted LaTeX performance table for paper inclusion:
+```bash
+# Print to console (for copy/paste)
+uv run eca-cnn-analysis --runs-dir runs --rules 90,150,30,110 --Hs 8,16,32 --latex-table
+
+# Save to file
+uv run eca-cnn-analysis --runs-dir runs --rules 90,150,30,110 --Hs 8,16,32 \
+  --latex-table --latex-out figs/analysis/metrics_table.tex
+
+# Customize formatting
+uv run eca-cnn-analysis --runs-dir runs --rules 90,150,30,110 --Hs 8,16,32 \
+  --latex-table --table-precision 3 --table-caption "Model Performance Summary"
+```
+The table summarizes shallow model performance (mean across seeds) with columns for each horizon H and overall BCE/Acc metrics.
+
 ### One-shot: PowerShell orchestrator
 ```powershell
 # From repo root (Windows PowerShell)

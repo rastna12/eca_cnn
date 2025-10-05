@@ -248,6 +248,119 @@ def _load_model_for_run(run: Dict, device: str = "cpu"):
     return mdl
 
 
+def _aggregate_shallow_means(runs: List[Dict], rules: List[int], Hs: List[int]) -> Dict[int, Dict[str, any]]:
+    """
+    Aggregate shallow model metrics by computing means across seeds for each (rule, H).
+    Returns dict: rule -> {"H_means": {H: mean_acc}, "overall_bce": float, "overall_acc": float}
+    """
+    result = {}
+    for rule in rules:
+        # Filter shallow runs for this rule
+        rule_runs = [r for r in runs if r["config"].get("model") == "shallow" and r["config"].get("rule") == rule]
+        
+        if not rule_runs:
+            result[rule] = {"H_means": {}, "overall_bce": np.nan, "overall_acc": np.nan}
+            continue
+        
+        # Per-H means
+        H_means = {}
+        for H in Hs:
+            H_accs = []
+            for r in rule_runs:
+                if r["config"].get("H") == H:
+                    acc_series = r["metrics"].get("acc", np.array([]))
+                    if acc_series.size > 0:
+                        H_accs.append(float(acc_series[-1]))
+            H_means[H] = np.nanmean(H_accs) if H_accs else np.nan
+        
+        # Overall means across all Hs and seeds for this rule
+        all_losses = []
+        all_accs = []
+        for r in rule_runs:
+            if r["config"].get("H") in Hs:
+                loss_series = r["metrics"].get("loss", np.array([]))
+                acc_series = r["metrics"].get("acc", np.array([]))
+                if loss_series.size > 0:
+                    all_losses.append(float(loss_series[-1]))
+                if acc_series.size > 0:
+                    all_accs.append(float(acc_series[-1]))
+        
+        result[rule] = {
+            "H_means": H_means,
+            "overall_bce": np.nanmean(all_losses) if all_losses else np.nan,
+            "overall_acc": np.nanmean(all_accs) if all_accs else np.nan,
+        }
+    
+    return result
+
+
+def render_latex_table_shallow_means(
+    agg: Dict[int, Dict[str, any]],
+    Hs: List[int],
+    caption: str,
+    label: str,
+    precision: int
+) -> str:
+    """
+    Render LaTeX tabularx table for shallow model performance summary.
+    """
+    n_H_cols = len(Hs)
+    # Build column spec: l for Rule, then n_H_cols centered X columns, then 2 centered X for BCE/Acc
+    col_spec = "l" + "*{%d}{>{\\centering\\arraybackslash}X}" % n_H_cols
+    col_spec += ">{\\centering\\arraybackslash}X>{\\centering\\arraybackslash}X"
+    
+    lines = []
+    lines.append("\\begin{table}[t]")
+    lines.append("  \\centering")
+    lines.append(f"  \\caption{{{caption}}}")
+    lines.append("  \\setlength{\\tabcolsep}{3pt}")
+    lines.append("  \\renewcommand{\\arraystretch}{1.05}")
+    lines.append("  \\scriptsize")
+    lines.append(f"  \\begin{{tabularx}}{{\\columnwidth}}{{@{{}}{col_spec}@{{}}}}")
+    lines.append("    \\toprule")
+    
+    # Header: Rule | H1 H2 ... | BCE Acc
+    H_headers = " & ".join(str(H) for H in Hs)
+    lines.append(f"    & \\multicolumn{{{n_H_cols}}}{{c}}{{Accuracy @ Horizon $H$}} & \\multicolumn{{2}}{{c}}{{Overall}} \\\\")
+    lines.append(f"    \\cmidrule(lr){{2-{1+n_H_cols}}}\\cmidrule(l){{{2+n_H_cols}-{3+n_H_cols}}}")
+    lines.append(f"    Rule & {H_headers} & BCE & Acc \\\\")
+    lines.append("    \\midrule")
+    
+    # Data rows
+    for rule in sorted(agg.keys()):
+        row_data = agg[rule]
+        H_means = row_data["H_means"]
+        overall_bce = row_data["overall_bce"]
+        overall_acc = row_data["overall_acc"]
+        
+        row_parts = [str(rule)]
+        for H in Hs:
+            val = H_means.get(H, np.nan)
+            if np.isnan(val):
+                row_parts.append("--")
+            else:
+                row_parts.append(f"{val:.{precision}f}")
+        
+        if np.isnan(overall_bce):
+            row_parts.append("--")
+        else:
+            row_parts.append(f"{overall_bce:.{precision}f}")
+        
+        if np.isnan(overall_acc):
+            row_parts.append("--")
+        else:
+            row_parts.append(f"{overall_acc:.{precision}f}")
+        
+        lines.append("    " + " & ".join(row_parts) + " \\\\")
+    
+    lines.append("    \\bottomrule")
+    lines.append("  \\end{tabularx}")
+    lines.append(f"  \\label{{{label}}}")
+    lines.append("\\end{table}")
+    
+    return "\n".join(lines)
+
+
 def plot_truth_vs_prediction(
     run: Dict,
     *,
@@ -318,6 +431,12 @@ def main():
     p.add_argument("--Hs", type=str, default="8,16,32")
     p.add_argument("--qual-H", type=int, default=64, help="H for qualitative truth vs prediction plots")
     p.add_argument("--qual-seed", type=int, default=0, help="Seed for input vector for qualitative plots")
+    p.add_argument("--latex-table", action="store_true", help="Generate LaTeX performance table")
+    p.add_argument("--latex-out", type=str, default=None, help="Path to save LaTeX table (default: print to stdout)")
+    p.add_argument("--table-caption", type=str, default="Prediction performance across rules and horizons", 
+                    help="Caption for LaTeX table")
+    p.add_argument("--table-label", type=str, default="tab:metrics", help="Label for LaTeX table")
+    p.add_argument("--table-precision", type=int, default=2, help="Decimal precision for table values")
     args = p.parse_args()
 
     # Apply IEEE style up-front to cover any figures created below
@@ -329,6 +448,26 @@ def main():
 
     rules = [int(x) for x in args.rules.split(",") if x]
     Hs = [int(x) for x in args.Hs.split(",") if x]
+
+    # Generate LaTeX table if requested
+    if args.latex_table:
+        agg = _aggregate_shallow_means(runs, rules, Hs)
+        latex = render_latex_table_shallow_means(
+            agg, 
+            Hs, 
+            args.table_caption, 
+            args.table_label, 
+            args.table_precision
+        )
+        
+        if args.latex_out:
+            latex_path = Path(args.latex_out)
+            latex_path.parent.mkdir(parents=True, exist_ok=True)
+            with latex_path.open("w", encoding="utf-8") as f:
+                f.write(latex)
+            print(f"LaTeX table saved to {latex_path.resolve()}")
+        else:
+            print(latex)
 
     # Per-run training curves with consistent y-limits across runs
     curves_out = outdir / "curves"

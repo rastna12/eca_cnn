@@ -80,8 +80,18 @@ else {
     Invoke-Tool "python -m eca_cnn.analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`" --qual-H $QualH --qual-seed $QualSeed"
 }
 
+# 4) Generate LaTeX performance table (optional, for paper inclusion)
+$latexOut = Join-Path $AnalysisDir "metrics_table.tex"
+if ($UseUv) {
+    Invoke-Tool "uv run eca-cnn-analysis --runs-dir `"$RunsDir`" --rules `"$Rules`" --Hs `"$Hs`" --latex-table --latex-out `"$latexOut`""
+}
+else {
+    Invoke-Tool "python -m eca_cnn.analysis --runs-dir `"$RunsDir`" --rules `"$Rules`" --Hs `"$Hs`" --latex-table --latex-out `"$latexOut`""
+}
+
 Write-Host "All done." -ForegroundColor Green
 Write-Host "Runs saved under: $RunsDir"
 Write-Host "Figures saved under: $FigsDir and $AnalysisDir"
+Write-Host "LaTeX table saved to: $latexOut"
 
 
