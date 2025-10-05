@@ -8,7 +8,7 @@ param(
     [string]$Hs = "1,2,4,8,16,32",
     [string]$Models = "shallow",
     [string]$Depths = "",
-    [string]$Seeds = "1",
+    [string]$Seeds = "1,2,3,4,5",
     [int]$Width = 256,
     [int]$SpacetimeSteps = 256,
     [int]$Hmask = 16,
