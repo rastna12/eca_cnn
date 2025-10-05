@@ -356,8 +356,8 @@ def plot_truth_vs_prediction(
     outdir: Path,
 ):
     """
-    Create a two-row binary visualization: [ground truth; model prediction] at t+H.
-    Uses a single random input state x_t with width N from the run config.
+    Create a two-row binary visualization: [ground truth; model prediction] at t+H,
+    with compact but non-overlapping spacing.
     """
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -386,28 +386,39 @@ def plot_truth_vs_prediction(
     truth_img = y_true_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
     pred_img = pred_bits.unsqueeze(0).cpu().numpy().astype(np.uint8)
 
-    # Plot as two subplots with clear labels
-    fig, axes = plt.subplots(2, 1, figsize=(3.35, 1.8), sharex=True)
-    axes[0].imshow(truth_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
-    axes[0].set_title("Ground Truth ($t+H$)")
-    axes[0].set_xticks([]); axes[0].set_yticks([])
+    # --- Plot with compact, non-overlapping layout ---
+    # Keep a modest height; let constrained_layout allocate space for titles.
+    fig, axes = plt.subplots(
+        2, 1, figsize=(3.35, 1.75), sharex=True, constrained_layout=True
+    )
 
-    axes[1].imshow(pred_img, aspect='auto', interpolation='nearest', cmap='binary', vmin=0, vmax=1)
-    axes[1].set_title("Prediction ($t+H$)")
-    axes[1].set_xticks([]); axes[1].set_yticks([])
+    axes[0].imshow(truth_img, aspect="auto", interpolation="nearest",
+                   cmap="binary", vmin=0, vmax=1)
+    axes[0].set_title(r"Ground Truth $(t+H)$", pad=2)
 
-    label = f"model={model}"
-    if model == "deep" and depth is not None:
-        label += f", depth={depth}"
-    fig.suptitle(f"Rule {rule} ({_rule_category(rule)}) — $H={H}$")
-    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
+    axes[1].imshow(pred_img, aspect="auto", interpolation="nearest",
+                   cmap="binary", vmin=0, vmax=1)
+    axes[1].set_title(r"Prediction $(t+H)$", pad=2)
 
+    for ax in axes:
+        ax.set_xticks([]); ax.set_yticks([])
+
+    # Slightly reduce inter-row spacing while keeping headroom for the suptitle
+    fig.set_constrained_layout_pads(w_pad=0.02, h_pad=0.02, hspace=0.02)
+
+    # Let constrained_layout position this (do NOT force y).
+    title = f"Rule {rule} ({_rule_category(rule)}) — $H={H}$"
+    fig.suptitle(title)
+
+    # --- Save ---
     fname = f"qual_rule-{rule}_H-{H}_model-{model}"
     if model == "deep" and depth is not None:
         fname += f"_D{depth}"
     fname += f"_seed{seed}.png"
     savefig_ieee(fig, outdir / fname)
     plt.close(fig)
+
+
 
 
 def main():
