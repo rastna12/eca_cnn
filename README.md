@@ -73,7 +73,7 @@ uv run eca-cnn-analysis --runs-dir runs --rules 90,150,30,110 --Hs 8,16,32 \
 uv run eca-cnn-analysis --runs-dir runs --rules 90,150,30,110 --Hs 8,16,32 \
   --latex-table --table-precision 3 --table-caption "Model Performance Summary"
 ```
-The table summarizes shallow model performance (mean across seeds) with columns for each horizon H and overall BCE/Acc metrics.
+The table summarizes shallow model performance (mean across seeds) with columns for each horizon H.
 
 ### One-shot: PowerShell orchestrator
 ```powershell

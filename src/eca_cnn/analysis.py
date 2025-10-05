@@ -305,9 +305,8 @@ def render_latex_table_shallow_means(
     Render LaTeX tabularx table for shallow model performance summary.
     """
     n_H_cols = len(Hs)
-    # Build column spec: l for Rule, then n_H_cols centered X columns, then 2 centered X for BCE/Acc
+    # Build column spec: l for Rule, then n_H_cols centered X columns
     col_spec = "l" + "*{%d}{>{\\centering\\arraybackslash}X}" % n_H_cols
-    col_spec += ">{\\centering\\arraybackslash}X>{\\centering\\arraybackslash}X"
     
     lines = []
     lines.append("\\begin{table}[t]")
@@ -319,19 +318,17 @@ def render_latex_table_shallow_means(
     lines.append(f"  \\begin{{tabularx}}{{\\columnwidth}}{{@{{}}{col_spec}@{{}}}}")
     lines.append("    \\toprule")
     
-    # Header: Rule | H1 H2 ... | BCE Acc
+    # Header: Rule | H1 H2 ...
     H_headers = " & ".join(str(H) for H in Hs)
-    lines.append(f"    & \\multicolumn{{{n_H_cols}}}{{c}}{{Accuracy @ Horizon $H$}} & \\multicolumn{{2}}{{c}}{{Overall}} \\\\")
-    lines.append(f"    \\cmidrule(lr){{2-{1+n_H_cols}}}\\cmidrule(l){{{2+n_H_cols}-{3+n_H_cols}}}")
-    lines.append(f"    Rule & {H_headers} & BCE & Acc \\\\")
+    lines.append(f"    & \\multicolumn{{{n_H_cols}}}{{c}}{{Accuracy @ Horizon $H$}} \\\\")
+    lines.append(f"    \\cmidrule(l){{2-{1+n_H_cols}}}")
+    lines.append(f"    Rule & {H_headers} \\\\")
     lines.append("    \\midrule")
     
     # Data rows
     for rule in sorted(agg.keys()):
         row_data = agg[rule]
         H_means = row_data["H_means"]
-        overall_bce = row_data["overall_bce"]
-        overall_acc = row_data["overall_acc"]
         
         row_parts = [str(rule)]
         for H in Hs:
@@ -340,16 +337,6 @@ def render_latex_table_shallow_means(
                 row_parts.append("--")
             else:
                 row_parts.append(f"{val:.{precision}f}")
-        
-        if np.isnan(overall_bce):
-            row_parts.append("--")
-        else:
-            row_parts.append(f"{overall_bce:.{precision}f}")
-        
-        if np.isnan(overall_acc):
-            row_parts.append("--")
-        else:
-            row_parts.append(f"{overall_acc:.{precision}f}")
         
         lines.append("    " + " & ".join(row_parts) + " \\\\")
     

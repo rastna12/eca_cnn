@@ -3,9 +3,9 @@ param(
     [string]$FigsDir = "figs",
     [string]$AnalysisDir = "figs/analysis",
     [string]$Device = "cuda",
-    [int]$Steps = 500,
+    [int]$Steps = 2000,
     [string]$Rules = "150,90,30,110",
-    [string]$Hs = "8,16,32",
+    [string]$Hs = "1,2,4,8,16,32",
     [string]$Models = "shallow",
     [string]$Depths = "",
     [string]$Seeds = "1",
@@ -73,20 +73,12 @@ else {
 }
 
 # 3) Aggregate and plot analysis from saved runs
-if ($UseUv) {
-    Invoke-Tool "uv run eca-cnn-analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`" --qual-H $QualH --qual-seed $QualSeed"
-}
-else {
-    Invoke-Tool "python -m eca_cnn.analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`" --qual-H $QualH --qual-seed $QualSeed"
-}
-
-# 4) Generate LaTeX performance table (optional, for paper inclusion)
 $latexOut = Join-Path $AnalysisDir "metrics_table.tex"
 if ($UseUv) {
-    Invoke-Tool "uv run eca-cnn-analysis --runs-dir `"$RunsDir`" --rules `"$Rules`" --Hs `"$Hs`" --latex-table --latex-out `"$latexOut`""
+    Invoke-Tool "uv run eca-cnn-analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`" --qual-H $QualH --qual-seed $QualSeed --latex-table --latex-out `"$latexOut`""
 }
 else {
-    Invoke-Tool "python -m eca_cnn.analysis --runs-dir `"$RunsDir`" --rules `"$Rules`" --Hs `"$Hs`" --latex-table --latex-out `"$latexOut`""
+    Invoke-Tool "python -m eca_cnn.analysis --runs-dir `"$RunsDir`" --outdir `"$AnalysisDir`" --rules `"$Rules`" --Hs `"$Hs`" --qual-H $QualH --qual-seed $QualSeed --latex-table --latex-out `"$latexOut`""
 }
 
 Write-Host "All done." -ForegroundColor Green
