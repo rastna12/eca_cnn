@@ -205,6 +205,41 @@ def plot_final_acc_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path)
     plt.close(fig)
 
 
+def plot_final_loss_vs_H_all_models(runs: List[Dict], *, rule: int, outdir: Path):
+    outdir.mkdir(parents=True, exist_ok=True)
+    # aggregate by (model, depth) then H
+    key_to_H_to_losses: Dict[Tuple[str, int], Dict[int, List[float]]] = {}
+    for r in runs:
+        cfg = r["config"]
+        if cfg.get("rule") != rule:
+            continue
+        model = str(cfg.get("model"))
+        depth = int(cfg.get("depth")) if (model == "deep" and cfg.get("depth") is not None) else 0
+        H = int(cfg.get("H"))
+        loss = float(r["metrics"]["loss"][-1]) if len(r["metrics"]["loss"]) else np.nan
+        key = (model, depth)
+        key_to_H_to_losses.setdefault(key, {}).setdefault(H, []).append(loss)
+
+    if not key_to_H_to_losses:
+        return
+
+    fig, ax = plt.subplots(figsize=(3.35, 2.3))
+    for (model, depth), H_to_losses in sorted(key_to_H_to_losses.items()):
+        Hs = sorted(H_to_losses.keys())
+        means = [np.nanmean(H_to_losses[H]) for H in Hs]
+        stds = [np.nanstd(H_to_losses[H]) for H in Hs]
+        label = f"{model}" if model != "deep" else f"deep-D{depth}"
+        ax.errorbar(Hs, means, yerr=stds, fmt="-o", capsize=3, label=label)
+    ax.set_title(f"Final Loss vs Prediction Horizon $H$ — Rule={rule}")
+    ax.set_xlabel("Prediction Horizon $H$")
+    ax.set_ylabel("Final Loss")
+    ax.grid(True, alpha=0.3)
+    ax.legend()
+    fig.tight_layout()
+    savefig_ieee(fig, outdir / f"final_loss_vs_H_rule-{rule}.png")
+    plt.close(fig)
+
+
 def _select_best_run(runs: List[Dict], *, rule: int, H: int) -> Optional[Dict]:
     """
     Among runs matching (rule, H), pick the one with the highest final accuracy.
@@ -505,6 +540,10 @@ def main():
     for rule in rules:
         plot_final_acc_vs_H_all_models(runs, rule=rule, outdir=outdir)
 
+    # Final loss vs H, all models overlayed per rule
+    for rule in rules:
+        plot_final_loss_vs_H_all_models(runs, rule=rule, outdir=outdir)
+
     # Accuracy vs depth for each rule and H (existing)
     for rule in rules:
         for H in Hs:
@@ -563,6 +602,52 @@ def main():
         ax.legend(handles, labels, loc="best")
         fig.tight_layout()
         fname = f"final_acc_vs_H_by_rule_model-{model}"
+        if model == "deep":
+            fname += f"_D{depth}"
+        savefig_ieee(fig, outdir / f"{fname}.png")
+        plt.close(fig)
+
+    # New: For each model variant, plot all rules' loss as curves on one figure
+    for (model, depth) in model_keys:
+        # Aggregate by rule, then H
+        rule_to_H_to_losses: Dict[int, Dict[int, List[float]]] = {}
+        for r in runs:
+            cfg = r["config"]
+            if str(cfg.get("model")) != model:
+                continue
+            d = int(cfg.get("depth")) if (model == "deep" and cfg.get("depth") is not None) else 0
+            if d != depth:
+                continue
+            rule = int(cfg.get("rule"))
+            if rules and rule not in rules:
+                continue
+            H = int(cfg.get("H"))
+            loss = float(r["metrics"]["loss"][-1]) if len(r["metrics"]["loss"]) else np.nan
+            rule_to_H_to_losses.setdefault(rule, {}).setdefault(H, []).append(loss)
+
+        if not rule_to_H_to_losses:
+            continue
+
+        fig, ax = plt.subplots(figsize=(3.35, 2.3))
+        for rule in sorted(rule_to_H_to_losses.keys()):
+            H_to_losses = rule_to_H_to_losses[rule]
+            Hs_sorted = sorted(H_to_losses.keys())
+            means = [np.nanmean(H_to_losses[H]) for H in Hs_sorted]
+            stds = [np.nanstd(H_to_losses[H]) for H in Hs_sorted]
+            style = _rule_style(rule)
+            label = f"Rule {rule} ({_rule_category(rule)})"
+            ax.errorbar(Hs_sorted, means, yerr=stds, capsize=3, label=label, **style)
+        title = f"Final Loss vs Prediction Horizon $H$"
+        if model == "deep":
+            title += f", Depth={depth}"
+        ax.set_title(title)
+        ax.set_xlabel("Prediction Horizon $H$")
+        ax.set_ylabel("Final Loss")
+        ax.grid(True, alpha=0.3)
+        handles, labels = ax.get_legend_handles_labels()
+        ax.legend(handles, labels, loc="best")
+        fig.tight_layout()
+        fname = f"final_loss_vs_H_by_rule_model-{model}"
         if model == "deep":
             fname += f"_D{depth}"
         savefig_ieee(fig, outdir / f"{fname}.png")
